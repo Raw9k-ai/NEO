@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Agent Sandbox — God's Eye View</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Mono:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07070f;--surface:#0d0d1c;--surface2:#11112a;
+  --border:#1c1c35;--text:#cdc8e8;--muted:#4a4570;
+  --accent:#7c6af7;--accent2:#38d9a9;--warn:#f7a84a;--danger:#f76a6a;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+/* TOPBAR */
+#topbar{display:flex;align-items:center;justify-content:space-between;padding:0 18px;height:50px;border-bottom:1px solid var(--border);background:rgba(7,7,15,.97);z-index:200;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:10px}
+.gem{width:20px;height:20px;background:var(--accent);clip-path:polygon(50% 0%,100% 38%,82% 100%,18% 100%,0% 38%);animation:gs 8s linear infinite;flex-shrink:0}
+@keyframes gs{0%,100%{filter:hue-rotate(0deg) brightness(1)}50%{filter:hue-rotate(40deg) brightness(1.3)}}
+.brand h1{font-family:'Playfair Display',serif;font-size:15px;font-weight:400;letter-spacing:1.5px;color:#e0d8ff}
+.brand .sub{font-size:9px;letter-spacing:3px;text-transform:uppercase;color:var(--muted)}
+.tr{display:flex;align-items:center;gap:8px}
+.btn{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;padding:6px 14px;border-radius:2px;cursor:pointer;border:1px solid transparent;transition:all .18s;white-space:nowrap}
+.btn-p{background:var(--accent);color:#07070f;border-color:var(--accent)}.btn-p:hover{background:#6b5af0}
+.btn-g{background:transparent;color:var(--muted);border-color:var(--border)}.btn-g:hover{color:var(--text);border-color:var(--muted)}
+.btn-o{background:transparent;color:var(--accent2);border-color:#38d9a944}.btn-o:hover{background:#38d9a911}
+.btn-d{background:transparent;color:var(--danger);border-color:#f76a6a33}.btn-d:hover{background:#f76a6a11}
+.btn:disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+.pill{font-size:9px;letter-spacing:2px;text-transform:uppercase;padding:3px 9px;border-radius:20px;background:var(--border);color:var(--muted)}
+/* CONFIG */
+.cbar{display:flex;align-items:center;gap:10px;padding:7px 18px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.cbar label{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.ci{background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:5px 10px;border-radius:2px;outline:none;transition:border-color .2s}
+.ci:focus{border-color:var(--accent)}
+.ci::placeholder{color:var(--muted)}
+#aki{flex:1;color:#7770a0}.aki:focus{color:var(--text)}
+#asi{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+#sci{flex:1}
+#tni{width:48px;text-align:center}
+/* MAIN */
+#main{display:flex;flex:1;overflow:hidden}
+/* CANVAS */
+#cwrap{flex:1;position:relative;overflow:hidden;background:radial-gradient(ellipse 70% 50% at 25% 35%,#150828,transparent 55%),radial-gradient(ellipse 50% 40% at 75% 65%,#081420,transparent 55%),var(--bg)}
+#cwrap::before{content:'';position:absolute;inset:0;background-image:radial-gradient(1px 1px at 8% 12%,#ffffff1a,transparent),radial-gradient(1px 1px at 22% 58%,#ffffff12,transparent),radial-gradient(1.5px 1.5px at 38% 22%,#ffffff16,transparent),radial-gradient(1px 1px at 52% 72%,#ffffff10,transparent),radial-gradient(1px 1px at 67% 38%,#ffffff18,transparent),radial-gradient(1px 1px at 78% 85%,#ffffff12,transparent),radial-gradient(1.5px 1.5px at 88% 18%,#ffffff15,transparent),radial-gradient(1px 1px at 14% 88%,#ffffff10,transparent),radial-gradient(1px 1px at 44% 45%,#ffffff14,transparent),radial-gradient(1px 1px at 93% 62%,#ffffff12,transparent);pointer-events:none}
+#lsvg{position:absolute;inset:0;pointer-events:none;z-index:1}
+#canvas{position:absolute;inset:0}
+/* BUBBLES */
+.ab{position:absolute;transform:translate(-50%,-50%);z-index:10;cursor:pointer;transition:filter .2s;user-select:none}
+.ab:hover{filter:brightness(1.15)}
+.ab.sel .bc{box-shadow:0 0 0 2px var(--ac),0 0 28px var(--ag)!important}
+.bc{width:68px;height:68px;border-radius:50%;border:2px solid var(--ac);box-shadow:0 0 18px var(--ag),inset 0 0 14px rgba(0,0,0,.5);background:radial-gradient(circle at 35% 32%,var(--al),var(--ad));display:flex;align-items:center;justify-content:center;position:relative;transition:box-shadow .3s}
+.bav{font-family:'Playfair Display',serif;font-size:24px;font-weight:600;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.6);pointer-events:none}
+.bdot{position:absolute;bottom:3px;right:3px;width:13px;height:13px;border-radius:50%;border:2px solid var(--bg);background:var(--muted);transition:background .3s}
+.bdot.running{background:var(--accent2);animation:bl 1s infinite}
+.bdot.done{background:#7c6af7}.bdot.error{background:var(--danger)}
+@keyframes bl{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.35);opacity:.6}}
+.bname{text-align:center;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--ac);margin-top:6px;text-shadow:0 0 10px var(--ag)}
+.bth{position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);background:rgba(13,13,28,.97);border:1px solid var(--ac);border-radius:6px 6px 6px 2px;padding:8px 11px;font-size:10.5px;line-height:1.55;color:#b8b0d8;max-width:210px;min-width:150px;white-space:normal;pointer-events:none;opacity:0;transition:opacity .25s;z-index:30;box-shadow:0 6px 24px rgba(0,0,0,.6)}
+.ab:hover .bth,.ab.sel .bth{opacity:1}
+/* PANEL */
+#sp{width:360px;flex-shrink:0;border-left:1px solid var(--border);display:flex;flex-direction:column;background:var(--surface);overflow:hidden}
+#ph{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:10px}
+#pn{font-family:'Playfair Display',serif;font-size:17px;color:#e0d8ff}
+#pt{font-size:9px;letter-spacing:2px;text-transform:uppercase;padding:3px 8px;border-radius:2px;background:var(--border);color:var(--muted);white-space:nowrap}
+#psw{padding:12px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.slbl{font-size:8px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+#psc{font-size:11.5px;line-height:1.75;color:#7770a0;font-style:italic}
+#pst{flex:1;overflow-y:auto;padding:0 18px 20px;scroll-behavior:smooth}
+#pst::-webkit-scrollbar{width:3px}
+#pst::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.tb{padding:13px 0;border-bottom:1px solid var(--border);animation:fu .4s ease}
+.tb:last-child{border-bottom:none}
+@keyframes fu{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+.tn{font-size:8px;letter-spacing:3px;text-transform:uppercase;margin-bottom:5px;opacity:.8}
+.tt{font-size:12.5px;line-height:1.9;color:#a8a0c8;font-family:'DM Mono',monospace}
+.pe{padding:36px 18px;text-align:center;color:var(--muted);font-size:11px;line-height:1.9}
+.pe .ic{font-size:30px;display:block;margin-bottom:12px;opacity:.2}
+.thk{display:flex;align-items:center;gap:6px;padding:16px 0;color:var(--muted);font-size:10px;letter-spacing:1px}
+.da span{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin:0 2px;animation:da 1.2s ease-in-out infinite}
+.da span:nth-child(2){animation-delay:.2s}.da span:nth-child(3){animation-delay:.4s}
+@keyframes da{0%,80%,100%{transform:scale(.6);opacity:.3}40%{transform:scale(1.1);opacity:1}}
+/* BOTTOMBAR */
+#bb{height:40px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:0 18px;background:rgba(7,7,15,.95);flex-shrink:0;z-index:100}
+#pw{flex:1;height:2px;background:var(--border);border-radius:2px;overflow:hidden}
+#pb{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .9s ease;border-radius:2px}
+#sm{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);min-width:220px;text-align:right}
+/* FAB */
+#fab{position:absolute;bottom:18px;left:18px;z-index:50;width:40px;height:40px;border-radius:50%;background:var(--accent);color:#07070f;border:none;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px #7c6af755;transition:transform .2s,box-shadow .2s}
+#fab:hover{transform:scale(1.1);box-shadow:0 0 30px #7c6af777}
+#fab:disabled{opacity:.25;cursor:not-allowed;transform:none}
+/* MODAL */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(5px);z-index:500;display:none;align-items:center;justify-content:center}
+.ov.open{display:flex}
+.modal{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:26px;width:480px;max-width:94vw;box-shadow:0 24px 64px rgba(0,0,0,.6);animation:mi .22s ease}
+@keyframes mi{from{opacity:0;transform:translateY(-14px) scale(.97)}to{opacity:1;transform:none}}
+.modal h2{font-family:'Playfair Display',serif;font-size:19px;font-weight:400;color:#e0d8ff;margin-bottom:18px}
+.fld{margin-bottom:14px}
+.fld label{display:block;font-size:8px;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.fld input,.fld textarea,.fld select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:11.5px;padding:8px 11px;border-radius:2px;outline:none;transition:border-color .2s}
+.fld input:focus,.fld textarea:focus{border-color:var(--accent)}
+.fld textarea{resize:vertical;min-height:85px;line-height:1.65}
+.ma{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.cg{display:flex;gap:7px;flex-wrap:wrap}
+.cs{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:border-color .15s,transform .15s}
+.cs:hover{transform:scale(1.1)}.cs.act{border-color:#fff}
+.awr{display:flex;gap:7px}
+.awb{flex:1;padding:7px;text-align:center;border:1px solid var(--border);border-radius:2px;font-size:10px;letter-spacing:1px;cursor:pointer;background:transparent;color:var(--muted);font-family:'DM Mono',monospace;transition:all .15s}
+.awb.on-a{background:#38d9a922;border-color:var(--accent2);color:var(--accent2)}
+.awb.on-u{background:#f76a6a22;border-color:var(--danger);color:var(--danger)}
+/* TOAST */
+#toast{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:10px 18px;font-size:11px;color:var(--text);z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+#toast.show{opacity:1}
+#rlb{font-size:9px;letter-spacing:1px;color:var(--muted);white-space:nowrap}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="brand">
+    <div class="gem"></div>
+    <div><h1>Agent Sandbox</h1><div class="sub">God's Eye View · Powered by Groq</div></div>
+  </div>
+  <div class="tr">
+    <span class="pill" id="agpill">0 / 10</span>
+    <span id="rlb"></span>
+    <button class="btn btn-g" id="clrbtn" onclick="clearAll()" style="display:none">Clear</button>
+    <button class="btn btn-o" id="rstbtn" onclick="resetSim()" style="display:none">↺ Reset</button>
+    <button class="btn btn-p" id="runbtn" onclick="runSim()">▶ Run Simulation</button>
+  </div>
+</div>
+
+<div class="cbar">
+  <label>Groq API Key</label>
+  <input class="ci" type="password" id="aki" placeholder="gsk_..." oninput="saveKey()"/>
+  <span id="asi">· Free at console.groq.com</span>
+  <a href="https://console.groq.com" target="_blank" style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);text-decoration:none;border:1px solid #7c6af733;padding:4px 10px;border-radius:2px;white-space:nowrap">Get Key →</a>
+</div>
+
+<div class="cbar">
+  <label>Scenario</label>
+  <input class="ci" id="sci" type="text" value="A dinner party where old friendships are tested and hidden feelings surface"/>
+  <label style="margin-left:8px">Turns</label>
+  <input class="ci" id="tni" type="number" value="8" min="2" max="20"/>
+  <label style="margin-left:8px">Model</label>
+  <select class="ci" id="msel" style="width:200px">
+    <option value="llama-3.3-70b-versatile">Llama 3.3 70B — Best Quality</option>
+    <option value="llama-3.1-8b-instant">Llama 3.1 8B — Fastest</option>
+    <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+    <option value="gemma2-9b-it">Gemma 2 9B</option>
+  </select>
+</div>
+
+<div id="main">
+  <div id="cwrap">
+    <svg id="lsvg"></svg>
+    <div id="canvas"></div>
+    <button id="fab" onclick="openAdd()" title="Add Agent">+</button>
+  </div>
+  <div id="sp">
+    <div id="ph">
+      <span id="pn">Select an Agent</span>
+      <span id="pt">—</span>
+    </div>
+    <div id="psw">
+      <div class="slbl">Character Script</div>
+      <div id="psc">Click any bubble to read their story here. Double-click to edit.</div>
+    </div>
+    <div id="pst">
+      <div class="pe"><span class="ic">◈</span>Add agents with <strong style="color:var(--accent)">+</strong> then press <strong style="color:var(--accent)">Run Simulation</strong>.<br/>All agents think in parallel, every turn.</div>
+    </div>
+  </div>
+</div>
+
+<div id="bb">
+  <div id="pw"><div id="pb"></div></div>
+  <div id="sm">Idle — add agents to begin</div>
+</div>
+
+<div class="ov" id="modal" onclick="ovc(event)">
+  <div class="modal">
+    <h2 id="mtitle">Add Agent</h2>
+    <div class="fld"><label>Name</label><input type="text" id="mn" placeholder="e.g. Maya" maxlength="24"/></div>
+    <div class="fld"><label>Color</label><div class="cg" id="cgrid"></div></div>
+    <div class="fld">
+      <label>Awareness — does this character know about the drama around them?</label>
+      <div class="awr">
+        <button class="awb on-a" id="awa" onclick="setAw('aware')">◉ Aware of dynamics</button>
+        <button class="awb" id="awu" onclick="setAw('unaware')">◎ Unaware / oblivious</button>
+      </div>
+    </div>
+    <div class="fld"><label>Character Script — who are they, what do they want, what do they know?</label><textarea id="msc" placeholder="e.g. Maya is in love with Daniel but senses he's pulling away. She's determined to address it tonight. She knows Lena has been spending time with him and it unsettles her."></textarea></div>
+    <div class="ma">
+      <button class="btn btn-g" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-d" id="delbtn" style="display:none" onclick="deleteAgent()">Delete</button>
+      <button class="btn btn-p" onclick="saveAgent()">Save Agent</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const COLORS=[
+  {id:'violet',hex:'#9b6fff',light:'#c4a8ff',dark:'#4a2ea0',glow:'#9b6fff50'},
+  {id:'sky',hex:'#38bdf8',light:'#7dd3fc',dark:'#0369a1',glow:'#38bdf850'},
+  {id:'rose',hex:'#fb7185',light:'#fda4af',dark:'#be123c',glow:'#fb718550'},
+  {id:'mint',hex:'#34d399',light:'#6ee7b7',dark:'#065f46',glow:'#34d39950'},
+  {id:'amber',hex:'#fbbf24',light:'#fde68a',dark:'#92400e',glow:'#fbbf2450'},
+  {id:'pink',hex:'#f472b6',light:'#f9a8d4',dark:'#9d174d',glow:'#f472b650'},
+  {id:'teal',hex:'#2dd4bf',light:'#99f6e4',dark:'#134e4a',glow:'#2dd4bf50'},
+  {id:'lime',hex:'#a3e635',light:'#d9f99d',dark:'#3f6212',glow:'#a3e63550'},
+  {id:'orange',hex:'#fb923c',light:'#fdba74',dark:'#9a3412',glow:'#fb923c50'},
+  {id:'indigo',hex:'#818cf8',light:'#a5b4fc',dark:'#3730a3',glow:'#818cf850'},
+];
+
+// Groq free tier: ~30 req/min. We space requests 2.2s apart to be safe.
+const DELAY = 2200;
+
+let agents=[], selId=null, editId=null, selCol=COLORS[0], selAw='aware', running=false;
+let queue=[], lastReq=0;
+
+// ── INIT ──
+document.addEventListener('DOMContentLoaded',()=>{
+  buildCG();
+  const k=localStorage.getItem('gsk')||'';
+  document.getElementById('aki').value=k; showKS(k);
+  updateBar();
+  // Default cast
+  [{name:'Maya',c:'violet',aw:'aware',x:25,y:35,s:"Maya is deeply in love with Daniel but senses he's emotionally withdrawing. She's attending tonight's dinner with the intent to confront him. She's keenly aware that Lena has been in Daniel's orbit and it unsettles her."},
+   {name:'Daniel',c:'sky',aw:'aware',x:60,y:25,s:"Daniel has developed real feelings for Lena but hasn't admitted it — even to himself. He's still with Maya and the dinner party feels like a pressure cooker. He knows Maya is suspicious and hopes the evening passes without incident."},
+   {name:'Lena',c:'rose',aw:'unaware',x:72,y:65,s:"Lena sees Daniel as a good friend — nothing more. She has no idea he has feelings for her, and no idea Maya sees her as a threat. She's genuinely excited about tonight and completely unaware of the storm swirling around her."},
+   {name:'Omar',c:'mint',aw:'unaware',x:32,y:72,s:"Omar is Maya's closest friend and has quietly loved her for two years. He's oblivious to the Maya-Daniel-Lena triangle. Tonight feels like any other dinner party — but being near Maya always makes him quietly anxious in ways he can't explain."},
+  ].forEach(d=>spawn({name:d.name,color:COLORS.find(c=>c.id===d.c),aw:d.aw,script:d.s,x:d.x,y:d.y}));
+});
+
+// ── KEY ──
+function saveKey(){const k=document.getElementById('aki').value.trim();localStorage.setItem('gsk',k);showKS(k);}
+function showKS(k){const e=document.getElementById('asi');if(k&&k.startsWith('gsk_')){e.style.color='#34d399';e.textContent='✓ Ready';}else if(k){e.style.color='#f7a84a';e.textContent='⚠ Should start with gsk_';}else{e.style.color='var(--muted)';e.textContent='· Free at console.groq.com';}}
+
+// ── RATE QUEUE ──
+function rq(fn){return new Promise((res,rej)=>{queue.push({fn,res,rej});pq();});}
+async function pq(){
+  if(!queue.length)return;
+  const now=Date.now(),w=Math.max(0,lastReq+DELAY-now);
+  if(w>0){setTimeout(pq,w);return;}
+  const it=queue.shift();lastReq=Date.now();
+  try{it.res(await it.fn());}catch(e){it.rej(e);}
+  setTimeout(pq,DELAY);
+}
+
+// ── GROQ CALL ──
+async function callGroq(agent,ti,total){
+  const key=document.getElementById('aki').value.trim();
+  const model=document.getElementById('msel').value;
+  const scenario=document.getElementById('sci').value.trim();
+  const others=agents.filter(a=>a.id!==agent.id);
+  const awText=agent.aw==='aware'
+    ?`You are aware that ${others.map(o=>o.name).join(', ')} are present and you understand the social dynamics at play.`
+    :`You are at this gathering but you are NOT aware of the underlying tensions or drama between others. You only perceive what is directly in front of you.`;
+  const sys=`You are ${agent.name}, a person in the following scenario.\n\nSCENARIO: ${scenario}\nYOUR CHARACTER: ${agent.script}\nAWARENESS: ${awText}\n\nINSTRUCTIONS:\n- Write in first person as ${agent.name}. No headers, no labels. Pure narrative.\n- Each response: 3-5 sentences of one moment — your internal thoughts, feelings, small actions, sensory observations.\n- Be emotionally authentic. Let tension accumulate naturally. Do NOT resolve things prematurely.\n- Reference specific details: a glance across the room, a sentence that stings, a moment of hesitation.`;
+  const msgs=[];
+  for(let i=0;i<agent.turns.length;i++){msgs.push({role:'user',content:i===0?'Begin.':'Continue.'});msgs.push({role:'assistant',content:agent.turns[i]});}
+  msgs.push({role:'user',content:ti===0?'The scene begins. Describe your arrival and your first moments.':`Turn ${ti+1} of ${total}. The scene continues — what happens next for you?`});
+  return rq(async()=>{
+    const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body:JSON.stringify({model,max_tokens:300,temperature:0.92,messages:[{role:'system',content:sys},...msgs]})
+    });
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||`HTTP ${r.status}`);}
+    const d=await r.json();
+    return d.choices?.[0]?.message?.content?.trim()||'(no response)';
+  });
+}
+
+// ── SIM ──
+async function runSim(){
+  const key=document.getElementById('aki').value.trim();
+  if(!key||!key.startsWith('gsk_')){toast('Paste your Groq API key above — free at console.groq.com');return;}
+  if(!agents.length){toast('Add at least one agent first.');return;}
+  running=true;queue=[];
+  const total=Math.max(2,Math.min(20,parseInt(document.getElementById('tni').value)||8));
+  agents.forEach(a=>{a.turns=[];a.status='running';renderBubble(a);});
+  updateBar();renderPanel();
+  for(let t=0;t<total;t++){
+    document.getElementById('sm').textContent=`Turn ${t+1} / ${total}`;
+    document.getElementById('pb').style.width=(t/total*100)+'%';
+    document.getElementById('rlb').textContent=`~${Math.ceil(agents.length*DELAY/1000)}s/turn`;
+    await Promise.all(agents.map(ag=>
+      callGroq(ag,t,total)
+        .then(tx=>{ag.turns.push(tx);ag.status=t===total-1?'done':'running';updBubble(ag);if(selId===ag.id)renderPanel();})
+        .catch(e=>{ag.turns.push(`[Error: ${e.message}]`);ag.status='error';updBubble(ag);if(selId===ag.id)renderPanel();})
+    ));
+  }
+  agents.forEach(a=>{if(a.status!=='error')a.status='done';updBubble(a);});
+  document.getElementById('pb').style.width='100%';
+  document.getElementById('sm').textContent=`✦ Complete — ${total} turns × ${agents.length} agents`;
+  document.getElementById('rlb').textContent='';
+  running=false;updateBar();
+}
+
+function resetSim(){
+  agents.forEach(a=>{a.turns=[];a.status='idle';renderBubble(a);});
+  document.getElementById('pb').style.width='0%';
+  document.getElementById('sm').textContent='Idle — ready to run';
+  document.getElementById('rlb').textContent='';
+  running=false;queue=[];updateBar();renderPanel();
+}
+
+function clearAll(){
+  if(!confirm('Remove all agents?'))return;
+  agents.forEach(a=>document.getElementById('b_'+a.id)?.remove());
+  agents=[];selId=null;
+  document.getElementById('lsvg').innerHTML='';
+  resetSim();renderPanel();updateBar();
+}
+
+// ── AGENTS ──
+function spawn({name,color,aw,script,x,y}){
+  const id='ag'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  agents.push({id,name,color,aw,script,x,y,turns:[],status:'idle'});
+  renderBubble(agents[agents.length-1]);
+  drawLines();updateBar();
+}
+
+function renderBubble(ag){
+  document.getElementById('b_'+ag.id)?.remove();
+  const cw=document.getElementById('cwrap'),W=cw.offsetWidth,H=cw.offsetHeight;
+  const el=document.createElement('div');
+  el.className='ab'+(selId===ag.id?' sel':'');
+  el.id='b_'+ag.id;
+  el.style.cssText=`--ac:${ag.color.hex};--al:${ag.color.light};--ad:${ag.color.dark};--ag:${ag.color.glow};left:${ag.x/100*W}px;top:${ag.y/100*H}px`;
+  const th=ag.turns.length>0?ag.turns[ag.turns.length-1].slice(0,95)+'…':ag.script.slice(0,80)+'…';
+  el.innerHTML=`<div class="bc"><div class="bav">${ag.name[0]}</div><div class="bdot ${ag.status}" id="dot_${ag.id}"></div></div><div class="bth" id="th_${ag.id}">${th}</div><div class="bname">${ag.name}</div>`;
+  el.addEventListener('click',()=>selAgent(ag.id));
+  el.addEventListener('dblclick',e=>{e.stopPropagation();if(!running)openEdit(ag.id);});
+  drag(el,ag);
+  document.getElementById('canvas').appendChild(el);
+}
+
+function updBubble(ag){
+  const dot=document.getElementById('dot_'+ag.id);
+  if(dot)dot.className='bdot '+ag.status;
+  const th=document.getElementById('th_'+ag.id);
+  if(th&&ag.turns.length>0)th.textContent=ag.turns[ag.turns.length-1].slice(0,95)+'…';
+}
+
+function selAgent(id){
+  selId=id;
+  document.querySelectorAll('.ab').forEach(b=>b.classList.remove('sel'));
+  document.getElementById('b_'+id)?.classList.add('sel');
+  renderPanel();
+}
+
+function renderPanel(){
+  const ag=agents.find(a=>a.id===selId);
+  if(!ag){
+    document.getElementById('pn').textContent='Select an Agent';
+    document.getElementById('pn').style.color='#e0d8ff';
+    document.getElementById('pt').textContent='—';
+    document.getElementById('pt').style.cssText='';
+    document.getElementById('psc').textContent='Click any bubble to read their story here.';
+    document.getElementById('pst').innerHTML='<div class="pe"><span class="ic">◈</span>Click a bubble to follow their story.</div>';
+    return;
+  }
+  document.getElementById('pn').textContent=ag.name;
+  document.getElementById('pn').style.color=ag.color.hex;
+  const pt=document.getElementById('pt');
+  pt.textContent=ag.aw==='aware'?'Aware':'Unaware';
+  pt.style.cssText=`background:${ag.aw==='aware'?'#34d39922':'#f76a6a22'};color:${ag.aw==='aware'?'#34d399':'#f76a6a'};border:1px solid ${ag.aw==='aware'?'#34d39955':'#f76a6a55'};font-size:9px;letter-spacing:2px;text-transform:uppercase;padding:3px 8px;border-radius:2px`;
+  document.getElementById('psc').textContent=ag.script;
+  const pst=document.getElementById('pst');
+  if(!ag.turns.length){
+    pst.innerHTML=running
+      ?`<div class="thk"><div class="da"><span></span><span></span><span></span></div><span>Waiting for turn…</span></div>`
+      :`<div class="pe"><span class="ic" style="color:${ag.color.hex}66">${ag.name[0]}</span>No turns yet. Press Run Simulation.</div>`;
+  }else{
+    pst.innerHTML=ag.turns.map((t,i)=>`<div class="tb"><div class="tn" style="color:${ag.color.hex}">Turn ${i+1}</div><div class="tt">${t}</div></div>`).join('');
+    if(running&&ag.status==='running')pst.innerHTML+=`<div class="thk"><div class="da"><span></span><span></span><span></span></div></div>`;
+    pst.scrollTop=pst.scrollHeight;
+  }
+}
+
+// ── DRAG ──
+function drag(el,ag){
+  let ox=0,oy=0,on=false;
+  el.addEventListener('mousedown',e=>{
+    if(running)return;on=true;
+    const r=document.getElementById('cwrap').getBoundingClientRect();
+    const cw=document.getElementById('cwrap');
+    ox=e.clientX-r.left-ag.x/100*cw.offsetWidth;
+    oy=e.clientY-r.top-ag.y/100*cw.offsetHeight;
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove',e=>{
+    if(!on)return;
+    const cw=document.getElementById('cwrap'),r=cw.getBoundingClientRect(),W=cw.offsetWidth,H=cw.offsetHeight;
+    ag.x=Math.max(6,Math.min(94,(e.clientX-r.left-ox)/W*100));
+    ag.y=Math.max(6,Math.min(94,(e.clientY-r.top-oy)/H*100));
+    el.style.left=ag.x/100*W+'px';el.style.top=ag.y/100*H+'px';drawLines();
+  });
+  window.addEventListener('mouseup',()=>{on=false;});
+}
+
+// ── LINES ──
+function drawLines(){
+  const svg=document.getElementById('lsvg'),cw=document.getElementById('cwrap');
+  const W=cw.offsetWidth,H=cw.offsetHeight;
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.innerHTML='';
+  const aw=agents.filter(a=>a.aw==='aware');
+  for(let i=0;i<aw.length;i++)for(let j=i+1;j<aw.length;j++){
+    const a=aw[i],b=aw[j];
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',a.x/100*W);l.setAttribute('y1',a.y/100*H);
+    l.setAttribute('x2',b.x/100*W);l.setAttribute('y2',b.y/100*H);
+    l.setAttribute('stroke','#9b6fff25');l.setAttribute('stroke-width','1');
+    l.setAttribute('stroke-dasharray','4 7');
+    svg.appendChild(l);
+  }
+}
+
+// ── TOPBAR ──
+function updateBar(){
+  const n=agents.length;
+  document.getElementById('agpill').textContent=`${n} / 10 agents`;
+  document.getElementById('fab').disabled=running||n>=10;
+  document.getElementById('runbtn').disabled=running||!n;
+  document.getElementById('runbtn').textContent=running?'⏳ Running…':'▶ Run Simulation';
+  document.getElementById('clrbtn').style.display=n&&!running?'':'none';
+  document.getElementById('rstbtn').style.display=agents.some(a=>a.turns.length)&&!running?'':'none';
+}
+
+// ── MODAL ──
+function openAdd(){
+  if(agents.length>=10){toast('Maximum 10 agents.');return;}
+  editId=null;
+  document.getElementById('mtitle').textContent='Add Agent';
+  document.getElementById('mn').value='';document.getElementById('msc').value='';
+  document.getElementById('delbtn').style.display='none';
+  selCol=COLORS[agents.length%COLORS.length];selAw='aware';
+  buildCG();setAw('aware');
+  document.getElementById('modal').classList.add('open');
+  setTimeout(()=>document.getElementById('mn').focus(),100);
+}
+function openEdit(id){
+  const a=agents.find(x=>x.id===id);if(!a)return;
+  editId=id;
+  document.getElementById('mtitle').textContent='Edit Agent';
+  document.getElementById('mn').value=a.name;document.getElementById('msc').value=a.script;
+  document.getElementById('delbtn').style.display='';
+  selCol=a.color;selAw=a.aw;buildCG();setAw(a.aw);
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(){document.getElementById('modal').classList.remove('open');}
+function ovc(e){if(e.target.id==='modal')closeModal();}
+function setAw(v){
+  selAw=v;
+  document.getElementById('awa').className='awb'+(v==='aware'?' on-a':'');
+  document.getElementById('awu').className='awb'+(v==='unaware'?' on-u':'');
+}
+function buildCG(){
+  const g=document.getElementById('cgrid');g.innerHTML='';
+  COLORS.forEach(c=>{
+    const sw=document.createElement('div');
+    sw.className='cs'+(c.id===selCol.id?' act':'');
+    sw.style.background=c.hex;sw.title=c.id;
+    sw.onclick=()=>{selCol=c;buildCG();};
+    g.appendChild(sw);
+  });
+}
+function saveAgent(){
+  const name=document.getElementById('mn').value.trim();
+  const script=document.getElementById('msc').value.trim();
+  if(!name){document.getElementById('mn').focus();return;}
+  if(!script){document.getElementById('msc').focus();return;}
+  if(editId){
+    const a=agents.find(x=>x.id===editId);
+    Object.assign(a,{name,script,color:selCol,aw:selAw});
+    renderBubble(a);drawLines();
+    if(selId===editId)renderPanel();
+  }else{
+    const cw=document.getElementById('cwrap');
+    spawn({name,color:selCol,aw:selAw,script,x:15+Math.random()*70,y:15+Math.random()*70});
+  }
+  updateBar();closeModal();
+}
+function deleteAgent(){
+  if(!editId)return;
+  document.getElementById('b_'+editId)?.remove();
+  agents=agents.filter(a=>a.id!==editId);
+  if(selId===editId){selId=null;renderPanel();}
+  drawLines();updateBar();closeModal();
+}
+
+// ── TOAST ──
+function toast(msg){const e=document.getElementById('toast');e.textContent=msg;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),3200);}
+
+// ── RESIZE ──
+window.addEventListener('resize',()=>{agents.forEach(a=>renderBubble(a));drawLines();});
+</script>
+</body>
+</html>
