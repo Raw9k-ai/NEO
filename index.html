@@ -143,11 +143,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;heig
   <label style="margin-left:8px">Turns</label>
   <input class="ci" id="tni" type="number" value="8" min="2" max="20"/>
   <label style="margin-left:8px">Model</label>
-  <select class="ci" id="msel" style="width:200px">
-    <option value="llama-3.3-70b-versatile">Llama 3.3 70B — Best Quality</option>
-    <option value="llama-3.1-8b-instant">Llama 3.1 8B — Fastest</option>
-    <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
-    <option value="gemma2-9b-it">Gemma 2 9B</option>
+  <select class="ci" id="msel" style="width:240px">
+    <option value="llama-3.1-8b-instant" selected>Llama 3.1 8B — Best for Free Tier ✓</option>
+    <option value="llama-3.3-70b-versatile">Llama 3.3 70B — Richer writing (slower)</option>
+    <option value="mixtral-8x7b-32768">Mixtral 8x7B — Balanced</option>
   </select>
 </div>
 
@@ -214,11 +213,7 @@ const COLORS=[
   {id:'indigo',hex:'#818cf8',light:'#a5b4fc',dark:'#3730a3',glow:'#818cf850'},
 ];
 
-// Groq free tier: ~30 req/min. We space requests 2.2s apart to be safe.
-const DELAY = 2200;
-
 let agents=[], selId=null, editId=null, selCol=COLORS[0], selAw='aware', running=false;
-let queue=[], lastReq=0;
 
 // ── INIT ──
 document.addEventListener('DOMContentLoaded',()=>{
@@ -238,66 +233,101 @@ document.addEventListener('DOMContentLoaded',()=>{
 function saveKey(){const k=document.getElementById('aki').value.trim();localStorage.setItem('gsk',k);showKS(k);}
 function showKS(k){const e=document.getElementById('asi');if(k&&k.startsWith('gsk_')){e.style.color='#34d399';e.textContent='✓ Ready';}else if(k){e.style.color='#f7a84a';e.textContent='⚠ Should start with gsk_';}else{e.style.color='var(--muted)';e.textContent='· Free at console.groq.com';}}
 
-// ── RATE QUEUE ──
-function rq(fn){return new Promise((res,rej)=>{queue.push({fn,res,rej});pq();});}
-async function pq(){
-  if(!queue.length)return;
-  const now=Date.now(),w=Math.max(0,lastReq+DELAY-now);
-  if(w>0){setTimeout(pq,w);return;}
-  const it=queue.shift();lastReq=Date.now();
-  try{it.res(await it.fn());}catch(e){it.rej(e);}
-  setTimeout(pq,DELAY);
-}
+// ── SLEEP ──
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// ── GROQ CALL ──
-async function callGroq(agent,ti,total){
-  const key=document.getElementById('aki').value.trim();
-  const model=document.getElementById('msel').value;
-  const scenario=document.getElementById('sci').value.trim();
-  const others=agents.filter(a=>a.id!==agent.id);
-  const awText=agent.aw==='aware'
-    ?`You are aware that ${others.map(o=>o.name).join(', ')} are present and you understand the social dynamics at play.`
-    :`You are at this gathering but you are NOT aware of the underlying tensions or drama between others. You only perceive what is directly in front of you.`;
-  const sys=`You are ${agent.name}, a person in the following scenario.\n\nSCENARIO: ${scenario}\nYOUR CHARACTER: ${agent.script}\nAWARENESS: ${awText}\n\nINSTRUCTIONS:\n- Write in first person as ${agent.name}. No headers, no labels. Pure narrative.\n- Each response: 3-5 sentences of one moment — your internal thoughts, feelings, small actions, sensory observations.\n- Be emotionally authentic. Let tension accumulate naturally. Do NOT resolve things prematurely.\n- Reference specific details: a glance across the room, a sentence that stings, a moment of hesitation.`;
-  const msgs=[];
-  for(let i=0;i<agent.turns.length;i++){msgs.push({role:'user',content:i===0?'Begin.':'Continue.'});msgs.push({role:'assistant',content:agent.turns[i]});}
-  msgs.push({role:'user',content:ti===0?'The scene begins. Describe your arrival and your first moments.':`Turn ${ti+1} of ${total}. The scene continues — what happens next for you?`});
-  return rq(async()=>{
-    const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-      body:JSON.stringify({model,max_tokens:300,temperature:0.92,messages:[{role:'system',content:sys},...msgs]})
-    });
-    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||`HTTP ${r.status}`);}
-    const d=await r.json();
-    return d.choices?.[0]?.message?.content?.trim()||'(no response)';
+// ── GROQ CALL with exponential backoff retry ──
+async function callGroq(agent, ti, total, retries=4){
+  const key   = document.getElementById('aki').value.trim();
+  const model = document.getElementById('msel').value;
+  const scenario = document.getElementById('sci').value.trim().slice(0, 120); // cap scenario length
+  const others = agents.filter(a=>a.id!==agent.id);
+
+  // ── COMPACT system prompt — every token counts on free tier ──
+  const awLine = agent.aw==='aware'
+    ? `Others present: ${others.map(o=>o.name).join(', ')}. You are aware of the dynamics.`
+    : `You are unaware of any drama around you. React only to what you directly observe.`;
+  const sys = `You are ${agent.name}. Scenario: ${scenario}. You: ${agent.script.slice(0,200)}. ${awLine} Write 2-3 sentences in first person — one vivid moment: your feelings, a small action, a telling detail. No labels.`;
+
+  // Only keep last 2 turns of history to minimize input tokens
+  const recentTurns = agent.turns.slice(-2);
+  const msgs = [];
+  recentTurns.forEach((t,i)=>{
+    msgs.push({role:'user', content: i===0&&agent.turns.length<=2 ? 'Begin.' : 'Continue.'});
+    msgs.push({role:'assistant', content: t});
   });
+  msgs.push({role:'user', content: ti===0 ? 'Begin.' : 'Continue.'});
+
+  for(let attempt=0; attempt<retries; attempt++){
+    try{
+      const r = await fetch('https://api.groq.com/openai/v1/chat/completions',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+        body: JSON.stringify({model, max_tokens:150, temperature:0.93,
+          messages:[{role:'system',content:sys},...msgs]})
+      });
+
+      // Rate limited — wait and retry with backoff
+      if(r.status===429){
+        const errData = await r.json().catch(()=>({}));
+        // Try to extract retry-after from error message
+        const match = (errData.error?.message||'').match(/try again in (\d+)ms/i);
+        const waitMs = match ? parseInt(match[1])+200 : (1500 * Math.pow(2, attempt));
+        document.getElementById('rlb').textContent = `⏳ Rate limit — retrying in ${Math.ceil(waitMs/1000)}s…`;
+        await sleep(waitMs);
+        continue;
+      }
+
+      if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||`HTTP ${r.status}`);}
+      const d = await r.json();
+      document.getElementById('rlb').textContent='';
+      return d.choices?.[0]?.message?.content?.trim()||'(no response)';
+
+    } catch(e) {
+      if(attempt===retries-1) throw e;
+      await sleep(1200 * (attempt+1));
+    }
+  }
+  throw new Error('Max retries exceeded');
 }
 
-// ── SIM ──
+// ── SIM — agents run sequentially per turn to stay under TPM ──
 async function runSim(){
   const key=document.getElementById('aki').value.trim();
   if(!key||!key.startsWith('gsk_')){toast('Paste your Groq API key above — free at console.groq.com');return;}
   if(!agents.length){toast('Add at least one agent first.');return;}
-  running=true;queue=[];
+  running=true; queue=[];
   const total=Math.max(2,Math.min(20,parseInt(document.getElementById('tni').value)||8));
   agents.forEach(a=>{a.turns=[];a.status='running';renderBubble(a);});
   updateBar();renderPanel();
+
   for(let t=0;t<total;t++){
     document.getElementById('sm').textContent=`Turn ${t+1} / ${total}`;
     document.getElementById('pb').style.width=(t/total*100)+'%';
-    document.getElementById('rlb').textContent=`~${Math.ceil(agents.length*DELAY/1000)}s/turn`;
-    await Promise.all(agents.map(ag=>
-      callGroq(ag,t,total)
-        .then(tx=>{ag.turns.push(tx);ag.status=t===total-1?'done':'running';updBubble(ag);if(selId===ag.id)renderPanel();})
-        .catch(e=>{ag.turns.push(`[Error: ${e.message}]`);ag.status='error';updBubble(ag);if(selId===ag.id)renderPanel();})
-    ));
+
+    // Sequential — one agent at a time to avoid TPM spikes
+    for(const ag of agents){
+      document.getElementById('sm').textContent=`Turn ${t+1}/${total} — ${ag.name} thinking…`;
+      try{
+        const tx = await callGroq(ag, t, total);
+        ag.turns.push(tx);
+        ag.status = t===total-1?'done':'running';
+      } catch(e){
+        ag.turns.push(`[${e.message}]`);
+        ag.status='error';
+      }
+      updBubble(ag);
+      if(selId===ag.id) renderPanel();
+      // Small gap between agents — keeps us well under 6k TPM/min
+      await sleep(1100);
+    }
   }
+
   agents.forEach(a=>{if(a.status!=='error')a.status='done';updBubble(a);});
   document.getElementById('pb').style.width='100%';
   document.getElementById('sm').textContent=`✦ Complete — ${total} turns × ${agents.length} agents`;
   document.getElementById('rlb').textContent='';
-  running=false;updateBar();
+  running=false; updateBar();
 }
 
 function resetSim(){
