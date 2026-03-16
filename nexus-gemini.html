@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Gemini Simulation</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,700;1,9..144,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c0e;
+  --s1: #111417;
+  --s2: #181c21;
+  --s3: #1f252d;
+  --b1: #232b35;
+  --b2: #2d3848;
+  --gold: #c9a84c;
+  --gold2: #e8c97a;
+  --jade: #4ec994;
+  --crimson: #e05555;
+  --sky: #5ba3d9;
+  --lavender: #9b7ed4;
+  --text: #d8e2ed;
+  --t2: #8aa0b8;
+  --t3: #4d6480;
+  --t4: #2d4060;
+  --glow-gold: 0 0 24px rgba(201,168,76,0.18);
+  --glow-jade: 0 0 20px rgba(78,201,148,0.18);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'DM Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+}
+
+/* ── SCANLINE OVERLAY ── */
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ── HEADER ── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  height: 52px;
+  background: var(--s1);
+  border-bottom: 1px solid var(--b1);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 100;
+}
+.logo-wrap { display:flex; align-items:center; gap:12px; }
+.logo-glyph {
+  width:34px; height:34px;
+  border:1px solid var(--gold);
+  border-radius:4px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px;
+  color: var(--gold);
+  box-shadow: var(--glow-gold);
+  animation: glyph-pulse 4s ease-in-out infinite;
+  position:relative; overflow:hidden;
+}
+.logo-glyph::after {
+  content:'';
+  position:absolute; inset:0;
+  background: linear-gradient(135deg, rgba(201,168,76,0.08) 0%, transparent 60%);
+}
+@keyframes glyph-pulse {
+  0%,100% { box-shadow: 0 0 12px rgba(201,168,76,0.15); }
+  50% { box-shadow: 0 0 28px rgba(201,168,76,0.4); }
+}
+.logo-text { line-height:1; }
+.logo-name {
+  font-family: 'Fraunces', serif;
+  font-size:20px; font-weight:700;
+  letter-spacing:6px;
+  color: var(--gold2);
+  text-shadow: 0 0 30px rgba(201,168,76,0.3);
+}
+.logo-tagline {
+  font-size:9px; color:var(--t3);
+  letter-spacing:3px; text-transform:uppercase;
+  margin-top:1px;
+}
+.header-mid {
+  display:flex; align-items:center; gap:8px;
+}
+.turn-display {
+  font-size:11px; color:var(--t2);
+  padding: 5px 12px;
+  background: var(--s2);
+  border:1px solid var(--b1);
+  border-radius:4px;
+}
+.turn-display b { color:var(--gold2); font-weight:500; }
+.sim-status {
+  display:none; align-items:center; gap:6px;
+  font-size:10px; color:var(--jade);
+  padding:5px 10px;
+  background: rgba(78,201,148,0.07);
+  border:1px solid rgba(78,201,148,0.2);
+  border-radius:4px;
+  letter-spacing:1px;
+}
+.sim-status.on { display:flex; }
+.pulse { width:6px; height:6px; border-radius:50%; background:var(--jade); animation:pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+
+.header-right { display:flex; align-items:center; gap:8px; }
+
+.gemini-badge {
+  font-size:9px; letter-spacing:2px; text-transform:uppercase;
+  color:var(--t3); padding:4px 8px;
+  border:1px solid var(--b1); border-radius:3px;
+}
+.gemini-badge b { color:#4285f4; }
+
+input.api-field {
+  background:var(--s2);
+  border:1px solid var(--b2);
+  color:var(--text);
+  font-family:'DM Mono',monospace; font-size:11px;
+  padding:6px 30px 6px 10px;
+  border-radius:4px; width:210px;
+  outline:none; transition:border-color 0.2s;
+}
+input.api-field:focus { border-color:var(--gold); }
+input.api-field::placeholder { color:var(--t3); }
+.api-wrap { position:relative; }
+.api-dot {
+  position:absolute; right:10px; top:50%; transform:translateY(-50%);
+  width:7px; height:7px; border-radius:50%; background:var(--t3);
+  transition:all 0.3s;
+}
+.api-dot.ok { background:var(--jade); box-shadow:0 0 8px var(--jade); }
+.api-dot.bad { background:var(--crimson); }
+
+select.model-sel {
+  background:var(--s2); border:1px solid var(--b2);
+  color:var(--text); font-family:'DM Mono',monospace; font-size:10px;
+  padding:6px 10px; border-radius:4px; outline:none; cursor:pointer;
+}
+select.model-sel:focus { border-color:var(--gold); }
+
+.btn {
+  font-family:'DM Mono',monospace; font-size:10px; font-weight:500;
+  letter-spacing:1.5px; text-transform:uppercase;
+  padding:7px 16px; border-radius:4px; border:none; cursor:pointer;
+  transition:all 0.18s;
+}
+.btn-run {
+  background: linear-gradient(135deg, var(--gold) 0%, var(--gold2) 100%);
+  color:#0a0c0e; font-weight:700;
+  box-shadow: 0 2px 12px rgba(201,168,76,0.25);
+}
+.btn-run:hover { box-shadow:0 4px 24px rgba(201,168,76,0.5); transform:translateY(-1px); }
+.btn-run:disabled { background:var(--b2); color:var(--t3); box-shadow:none; transform:none; cursor:not-allowed; }
+.btn-pause { background:transparent; color:var(--crimson); border:1px solid var(--crimson); }
+.btn-pause:hover { background:var(--crimson); color:#fff; }
+.btn-ghost { background:transparent; color:var(--t2); border:1px solid var(--b2); }
+.btn-ghost:hover { border-color:var(--t2); color:var(--text); }
+.btn-sm { padding:5px 10px; font-size:9px; }
+.btn-export { background:transparent; color:var(--sky); border:1px solid rgba(91,163,217,0.3); }
+.btn-export:hover { background:rgba(91,163,217,0.1); border-color:var(--sky); }
+
+/* ── LAYOUT ── */
+.layout {
+  display:grid;
+  grid-template-columns: 260px 1fr 340px;
+  flex:1; overflow:hidden;
+}
+
+/* ── LEFT PANEL ── */
+.left {
+  background:var(--s1);
+  border-right:1px solid var(--b1);
+  display:flex; flex-direction:column;
+  overflow:hidden;
+}
+.phead {
+  padding:12px 14px;
+  border-bottom:1px solid var(--b1);
+  display:flex; align-items:center; justify-content:space-between;
+  flex-shrink:0;
+}
+.plabel {
+  font-size:9px; letter-spacing:3px; text-transform:uppercase;
+  color:var(--t3);
+}
+.agents-scroll { flex:1; overflow-y:auto; padding:8px; }
+.agents-scroll::-webkit-scrollbar { width:3px; }
+.agents-scroll::-webkit-scrollbar-thumb { background:var(--b2); border-radius:2px; }
+
+.acard {
+  background:var(--s2);
+  border:1px solid var(--b1);
+  border-radius:6px;
+  padding:10px 12px;
+  margin-bottom:6px;
+  cursor:pointer;
+  transition:all 0.18s;
+  position:relative; overflow:hidden;
+}
+.acard::before {
+  content:'';
+  position:absolute; left:0; top:0; bottom:0;
+  width:2px; background:var(--ac, var(--gold));
+  border-radius:1px 0 0 1px;
+}
+.acard:hover { border-color:var(--b2); background:var(--s3); }
+.acard.sel { border-color:var(--ac, var(--gold)); background:var(--s3); }
+.acard-top { display:flex; align-items:flex-start; gap:8px; }
+.avt {
+  width:30px; height:30px; border-radius:50%;
+  background:var(--ac,var(--gold));
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Fraunces',serif; font-size:12px; font-weight:700;
+  color:#0a0c0e; flex-shrink:0;
+}
+.ainfo { flex:1; min-width:0; }
+.aname { font-size:12px; font-weight:500; color:var(--text); }
+.arole { font-size:9px; color:var(--t3); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.amood { font-size:15px; flex-shrink:0; }
+.acard-bottom {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-top:7px;
+}
+.amem-badge {
+  font-size:8px; color:var(--t3);
+  background:var(--s1); padding:2px 6px;
+  border:1px solid var(--b1); border-radius:3px;
+}
+.abtns { display:flex; gap:4px; }
+.abtn {
+  font-size:8px; padding:2px 7px; border-radius:3px;
+  font-family:'DM Mono',monospace; cursor:pointer; border:none;
+  transition:all 0.15s; letter-spacing:0.5px;
+}
+.abtn-e { background:var(--s3); color:var(--t2); border:1px solid var(--b2); }
+.abtn-e:hover { color:var(--gold); border-color:var(--gold); }
+.abtn-d { background:transparent; color:var(--t3); border:1px solid var(--b1); }
+.abtn-d:hover { color:var(--crimson); border-color:var(--crimson); }
+
+.add-btn {
+  margin:8px;
+  padding:9px;
+  background:transparent;
+  border:1px dashed var(--b2);
+  border-radius:6px;
+  color:var(--t3); font-family:'DM Mono',monospace; font-size:10px;
+  cursor:pointer; text-align:center;
+  transition:all 0.2s; flex-shrink:0;
+}
+.add-btn:hover { border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,0.03); }
+
+/* ── CANVAS ── */
+.canvas {
+  position:relative; overflow:hidden;
+  background: radial-gradient(ellipse at 30% 40%, rgba(201,168,76,0.04) 0%, transparent 55%),
+              radial-gradient(ellipse at 75% 70%, rgba(78,201,148,0.03) 0%, transparent 45%),
+              var(--bg);
+}
+.canvas::before {
+  content:'';
+  position:absolute; inset:0;
+  background-image: linear-gradient(rgba(35,43,53,0.4) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(35,43,53,0.4) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events:none;
+}
+
+#relSvg {
+  position:absolute; inset:0;
+  width:100%; height:100%;
+  pointer-events:none;
+}
+
+.node {
+  position:absolute;
+  transform:translate(-50%,-50%);
+  cursor:grab; user-select:none;
+}
+.node:active { cursor:grabbing; }
+
+.node-bubble {
+  position:absolute;
+  bottom: 54px;
+  left:50%; transform:translateX(-50%);
+  background:var(--s2);
+  border:1px solid var(--b2);
+  border-radius:8px;
+  padding:7px 11px;
+  font-size:11px; color:var(--text);
+  line-height:1.5; text-align:center;
+  max-width:210px; white-space:pre-wrap;
+  box-shadow:0 6px 24px rgba(0,0,0,0.5);
+  pointer-events:none;
+  opacity:0; transition:opacity 0.3s;
+  min-width:80px;
+}
+.node-bubble.show { opacity:1; }
+.node-bubble::after {
+  content:'';
+  position:absolute; top:100%; left:50%; transform:translateX(-50%);
+  border:5px solid transparent;
+  border-top-color:var(--b2);
+}
+
+.node-narrator-banner {
+  position:absolute;
+  top:12px; left:50%; transform:translateX(-50%);
+  background: rgba(10,12,14,0.9);
+  border:1px solid var(--gold);
+  border-radius:6px;
+  padding:8px 16px;
+  font-family:'Fraunces',serif; font-style:italic;
+  font-size:12px; color:var(--gold2);
+  text-align:center;
+  max-width:70%;
+  box-shadow: var(--glow-gold);
+  pointer-events:none;
+  opacity:0; transition:opacity 0.4s;
+  z-index:50;
+  line-height:1.6;
+}
+.node-narrator-banner.show { opacity:1; }
+
+.canvas-empty {
+  position:absolute; top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  text-align:center; color:var(--t3);
+  pointer-events:none;
+}
+.ce-glyph {
+  font-family:'Fraunces',serif; font-size:56px;
+  color:var(--gold); opacity:0.15;
+  margin-bottom:12px; display:block;
+  animation:float 4s ease-in-out infinite;
+}
+@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+.ce-text { font-size:11px; line-height:2.2; letter-spacing:1px; }
+
+/* DIALOGUE CHAIN INDICATOR */
+.dialogue-chain {
+  position:absolute; bottom:0; left:0; right:0;
+  padding:10px 16px 14px;
+  background:linear-gradient(to top, rgba(10,12,14,0.98) 60%, transparent);
+  font-size:10px;
+  overflow-y:auto; max-height:130px;
+  z-index:40;
+}
+.dialogue-chain::-webkit-scrollbar { width:3px; }
+.dialogue-chain::-webkit-scrollbar-thumb { background:var(--b2); }
+.dl { margin-bottom:3px; line-height:1.7; }
+.dl-time { color:var(--t4); }
+.dl-who { font-weight:500; }
+.dl-say { color:var(--t2); }
+
+/* ── RIGHT PANEL ── */
+.right {
+  background:var(--s1);
+  border-left:1px solid var(--b1);
+  display:flex; flex-direction:column;
+  overflow:hidden;
+}
+.tabs { display:flex; border-bottom:1px solid var(--b1); flex-shrink:0; }
+.tab {
+  flex:1; padding:11px 6px; text-align:center;
+  font-size:9px; letter-spacing:2px; text-transform:uppercase;
+  color:var(--t3); cursor:pointer;
+  border-bottom:2px solid transparent; transition:all 0.18s;
+}
+.tab.on { color:var(--gold2); border-bottom-color:var(--gold); }
+.tab:hover:not(.on) { color:var(--t2); }
+
+.tpane { flex:1; overflow-y:auto; display:none; flex-direction:column; }
+.tpane.on { display:flex; }
+.tpane::-webkit-scrollbar { width:3px; }
+.tpane::-webkit-scrollbar-thumb { background:var(--b2); }
+
+/* STORY */
+.story-feed { padding:14px; }
+.story-sys {
+  font-size:10px; color:var(--t3); font-style:italic;
+  padding:6px 10px; margin-bottom:10px;
+  border-left:2px solid var(--b2);
+}
+.story-narrator {
+  background: rgba(201,168,76,0.05);
+  border:1px solid rgba(201,168,76,0.15);
+  border-radius:6px;
+  padding:10px 12px;
+  margin-bottom:12px;
+  font-family:'Fraunces',serif;
+  font-style:italic; font-size:12px;
+  color:var(--gold2); line-height:1.7;
+}
+.story-narrator::before { content:'⟡ '; opacity:0.6; }
+.story-block { margin-bottom:14px; animation:fadein 0.4s ease; }
+@keyframes fadein { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+.story-block-hd {
+  display:flex; align-items:center; gap:7px; margin-bottom:5px;
+}
+.sb-av {
+  width:20px; height:20px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Fraunces',serif; font-size:9px; font-weight:700;
+  color:#0a0c0e; flex-shrink:0;
+}
+.sb-name { font-size:11px; font-weight:500; }
+.sb-turn { font-size:9px; color:var(--t3); margin-left:auto; }
+.sb-speech {
+  font-size:12px; line-height:1.7; color:var(--t2);
+  padding-left:27px; border-left:1px solid var(--b2);
+  margin-left:10px;
+}
+.sb-feel { font-size:9px; color:var(--t3); padding-left:27px; margin-left:10px; margin-top:3px; }
+
+/* RELATIONS */
+.rel-feed { padding:12px; }
+.rel-empty { font-size:10px; color:var(--t3); text-align:center; padding:20px; line-height:2; }
+.rel-card {
+  background:var(--s2); border:1px solid var(--b1);
+  border-radius:6px; padding:11px; margin-bottom:8px;
+}
+.rel-hd { display:flex; align-items:center; gap:6px; margin-bottom:8px; font-size:11px; }
+.rdot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.rarrow { color:var(--t3); font-size:10px; }
+.rel-ixn { font-size:8px; color:var(--t3); margin-left:auto; }
+.rel-bars { display:flex; gap:8px; margin-bottom:6px; }
+.bar-grp { flex:1; }
+.bar-lbl { display:flex; justify-content:space-between; font-size:8px; color:var(--t3); margin-bottom:3px; }
+.bar-track { background:var(--s1); border-radius:3px; height:3px; }
+.bar-fill { height:3px; border-radius:3px; transition:width 0.6s ease; }
+.rel-sum { font-size:10px; color:var(--t2); line-height:1.6; }
+
+/* MEMORY */
+.mem-feed { padding:12px; }
+.mem-section { margin-bottom:14px; }
+.mem-hd { display:flex; align-items:center; gap:7px; margin-bottom:6px; }
+.mem-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.mem-name { font-size:12px; font-weight:500; }
+.mem-item {
+  background:var(--s2);
+  border-left:2px solid var(--b2);
+  padding:5px 9px; margin-bottom:3px;
+  border-radius:0 4px 4px 0;
+  font-size:10px; color:var(--t2); line-height:1.6;
+}
+.mem-t { font-size:8px; color:var(--t3); margin-bottom:1px; }
+
+/* MODAL */
+.overlay {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.75);
+  backdrop-filter:blur(6px);
+  z-index:2000; display:none;
+  align-items:center; justify-content:center;
+}
+.overlay.open { display:flex; }
+.modal {
+  background:var(--s1);
+  border:1px solid var(--b2);
+  border-radius:10px;
+  width:480px; padding:26px;
+  box-shadow:0 24px 70px rgba(0,0,0,0.7), var(--glow-gold);
+  animation:min 0.2s ease;
+}
+@keyframes min { from{opacity:0;transform:scale(0.96)} to{opacity:1;transform:scale(1)} }
+.modal-title {
+  font-family:'Fraunces',serif; font-size:18px; font-weight:700;
+  letter-spacing:2px; color:var(--gold2); margin-bottom:20px;
+}
+.fg { margin-bottom:13px; }
+.fl { display:block; font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--t3); margin-bottom:5px; }
+.fi, .fta, .fse {
+  width:100%; background:var(--s2);
+  border:1px solid var(--b2); color:var(--text);
+  font-family:'DM Mono',monospace; font-size:11px;
+  padding:8px 11px; border-radius:5px; outline:none;
+  transition:border-color 0.2s;
+}
+.fi:focus, .fta:focus, .fse:focus { border-color:var(--gold); box-shadow:0 0 10px rgba(201,168,76,0.1); }
+.fi::placeholder, .fta::placeholder { color:var(--t3); }
+.fta { resize:vertical; min-height:85px; line-height:1.65; }
+.colors { display:flex; gap:7px; flex-wrap:wrap; }
+.cswatch {
+  width:26px; height:26px; border-radius:50%;
+  cursor:pointer; border:2px solid transparent; transition:all 0.15s;
+}
+.cswatch.on { border-color:#fff; transform:scale(1.2); }
+.mactions { display:flex; gap:8px; justify-content:flex-end; margin-top:18px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-wrap">
+    <div class="logo-glyph">⬡</div>
+    <div class="logo-text">
+      <div class="logo-name">NEXUS</div>
+      <div class="logo-tagline">Multi-Agent Simulation Engine</div>
+    </div>
+  </div>
+
+  <div class="header-mid">
+    <div class="turn-display">Turn <b id="turnNum">0</b></div>
+    <div class="sim-status" id="simStatus"><div class="pulse"></div> LIVE</div>
+  </div>
+
+  <div class="header-right">
+    <div class="gemini-badge">Powered by <b>Gemini</b></div>
+    <select class="model-sel" id="modelSel">
+      <option value="gemini-1.5-flash">Gemini 1.5 Flash · Free</option>
+      <option value="gemini-1.5-flash-8b">Gemini 1.5 Flash-8B · Fastest</option>
+    </select>
+    <div class="api-wrap">
+      <input type="password" class="api-field" id="apiKey" placeholder="Gemini API Key...">
+      <div class="api-dot" id="apiDot"></div>
+    </div>
+    <button class="btn btn-ghost btn-sm btn-export" id="exportBtn">↓ Export</button>
+    <button class="btn btn-ghost btn-sm" id="resetBtn">↺ Reset</button>
+    <button class="btn btn-run" id="runBtn">▶ Run</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- LEFT -->
+  <div class="left">
+    <div class="phead">
+      <span class="plabel">Agents</span>
+      <span id="agentCnt" style="font-size:9px;color:var(--t3)">0 active</span>
+    </div>
+    <div class="agents-scroll" id="agentsList"></div>
+    <button class="add-btn" id="addAgentBtn">＋ Add Agent</button>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas" id="canvas">
+    <svg id="relSvg"></svg>
+    <div class="node-narrator-banner" id="narratorBanner"></div>
+    <div class="canvas-empty" id="canvasEmpty">
+      <span class="ce-glyph">⬡</span>
+      <div class="ce-text">Add agents and press Run<br>to begin the simulation</div>
+    </div>
+    <div class="dialogue-chain" id="dialogueChain"></div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="tabs">
+      <div class="tab on" data-t="story">Story</div>
+      <div class="tab" data-t="relations">Relations</div>
+      <div class="tab" data-t="memory">Memory</div>
+    </div>
+    <div class="tpane on" id="tp-story"><div class="story-feed" id="storyFeed">
+      <div class="story-sys">The story will unfold here as agents speak and think.</div>
+    </div></div>
+    <div class="tpane" id="tp-relations"><div class="rel-feed" id="relFeed">
+      <div class="rel-empty">Relationships emerge<br>as agents interact.</div>
+    </div></div>
+    <div class="tpane" id="tp-memory"><div class="mem-feed" id="memFeed">
+      <div class="rel-empty">Agent memories<br>accumulate over time.</div>
+    </div></div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">ADD AGENT</div>
+    <div class="fg">
+      <label class="fl">Name</label>
+      <input class="fi" id="mName" placeholder="e.g. Elara, The Arbiter, Zero...">
+    </div>
+    <div class="fg">
+      <label class="fl">Role / Archetype</label>
+      <input class="fi" id="mRole" placeholder="e.g. Rebel scientist, Exiled noble...">
+    </div>
+    <div class="fg">
+      <label class="fl">Character Script</label>
+      <textarea class="fta" id="mScript" placeholder="Personality, goals, secrets, speech style, wounds, desires... Be specific."></textarea>
+    </div>
+    <div class="fg">
+      <label class="fl">Awareness</label>
+      <select class="fse" id="mAware">
+        <option value="unaware">Unaware — believes the world is real</option>
+        <option value="aware">Meta-aware — knows this is a simulation</option>
+      </select>
+    </div>
+    <div class="fg">
+      <label class="fl">Color</label>
+      <div class="colors" id="colorPicker"></div>
+    </div>
+    <div class="mactions">
+      <button class="btn btn-ghost" id="mCancel">Cancel</button>
+      <button class="btn btn-run" id="mSave">Save Agent</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+// CONSTANTS & STATE
+// ════════════════════════════════════════════════════════════
+const COLORS = ['#c9a84c','#4ec994','#e05555','#5ba3d9','#9b7ed4','#e8855a','#4fb8b8','#d4a94e','#7eb87e','#c97ea8'];
+const MOODS  = { happy:'😊', angry:'😠', sad:'😔', neutral:'😐', excited:'🤩', suspicious:'🤨', afraid:'😨', curious:'🤔', conflicted:'😕', determined:'😤' };
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+let S = {
+  agents: [], rels: {}, turn: 0,
+  running: false, editId: null,
+  selColor: COLORS[0], dragId: null, dragOX: 0, dragOY: 0,
+  storyLog: [], exportLog: []
+};
+
+// ════════════════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════════════════
+const uid  = () => Math.random().toString(36).slice(2,9);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const init  = n => n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+const rkey  = (a,b) => [a,b].sort().join('::');
+const apiKey = () => document.getElementById('apiKey').value.trim();
+const model  = () => document.getElementById('modelSel').value;
+
+// ════════════════════════════════════════════════════════════
+// GEMINI API
+// ════════════════════════════════════════════════════════════
+async function gemini(prompt, systemInstruction = '') {
+  const key = apiKey();
+  if (!key) throw new Error('No API key');
+  const url = `${GEMINI_BASE}/${model()}:generateContent?key=${key}`;
+  const body = {
+    contents: [{ role:'user', parts:[{ text: prompt }] }],
+    generationConfig: { temperature: 0.92, maxOutputTokens: 500 },
+    ...(systemInstruction ? { systemInstruction: { parts:[{ text: systemInstruction }] } } : {})
+  };
+  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (!r.ok) {
+    const e = await r.json().catch(()=>({}));
+    throw new Error(e.error?.message || `HTTP ${r.status}`);
+  }
+  const d = await r.json();
+  return d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
+function parseJSON(raw) {
+  try {
+    const m = raw.match(/\{[\s\S]*\}/);
+    return JSON.parse(m ? m[0] : raw);
+  } catch { return null; }
+}
+
+// ════════════════════════════════════════════════════════════
+// AGENT MANAGEMENT
+// ════════════════════════════════════════════════════════════
+function makeAgent(d) {
+  const canvas = document.getElementById('canvas');
+  const cx = canvas.clientWidth  || 600;
+  const cy = canvas.clientHeight || 400;
+  return {
+    id:    uid(),
+    name:  d.name  || 'Agent',
+    role:  d.role  || '',
+    script:d.script|| '',
+    aware: d.aware || 'unaware',
+    color: d.color || COLORS[0],
+    x: d.x || cx/2 + (Math.random()-.5)*200,
+    y: d.y || cy/2 + (Math.random()-.5)*140,
+    mood: 'neutral', memories: [], lastSaid: ''
+  };
+}
+
+function addAgent(d) {
+  const a = makeAgent(d);
+  S.agents.push(a);
+  for (const o of S.agents) {
+    if (o.id === a.id) continue;
+    const k = rkey(a.id, o.id);
+    if (!S.rels[k]) S.rels[k] = { trust:50, tension:0, summary:'Just met.', ixns:0 };
+  }
+  spawnNode(a);
+  renderLeft();
+  updateEmpty();
+  return a;
+}
+
+function deleteAgent(id) {
+  S.agents = S.agents.filter(a=>a.id!==id);
+  for (const k of Object.keys(S.rels)) if (k.includes(id)) delete S.rels[k];
+  document.querySelector(`.node[data-id="${id}"]`)?.remove();
+  renderLeft(); renderRelSvg(); renderRelFeed(); renderMemFeed();
+  updateEmpty();
+}
+
+function updateAgent(id, d) {
+  const a = S.agents.find(x=>x.id===id);
+  if (!a) return;
+  Object.assign(a, d);
+  spawnNode(a);
+  renderLeft();
+}
+
+// ════════════════════════════════════════════════════════════
+// NODE RENDERING
+// ════════════════════════════════════════════════════════════
+function spawnNode(agent) {
+  document.querySelector(`.node[data-id="${agent.id}"]`)?.remove();
+  const canvas = document.getElementById('canvas');
+
+  const wrap = document.createElement('div');
+  wrap.className = 'node';
+  wrap.dataset.id = agent.id;
+  wrap.style.left = agent.x + 'px';
+  wrap.style.top  = agent.y + 'px';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'node-bubble';
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('width','56'); svg.setAttribute('height','56');
+  svg.setAttribute('viewBox','-28 -28 56 56');
+  svg.style.overflow = 'visible';
+  svg.style.display = 'block';
+
+  const outerRing = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  outerRing.setAttribute('cx','0'); outerRing.setAttribute('cy','0');
+  outerRing.setAttribute('r','22');
+  outerRing.setAttribute('fill','none');
+  outerRing.setAttribute('stroke', agent.color);
+  outerRing.setAttribute('stroke-width','1');
+  outerRing.setAttribute('opacity','0.3');
+  outerRing.classList.add('outer-ring');
+
+  const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  circle.setAttribute('cx','0'); circle.setAttribute('cy','0');
+  circle.setAttribute('r','17');
+  circle.setAttribute('fill', agent.color);
+  circle.classList.add('main-circle');
+
+  const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+  label.setAttribute('x','0'); label.setAttribute('y','5');
+  label.setAttribute('text-anchor','middle');
+  label.setAttribute('fill','#0a0c0e');
+  label.setAttribute('font-size','10');
+  label.setAttribute('font-weight','700');
+  label.setAttribute('font-family','Fraunces, serif');
+  label.textContent = init(agent.name);
+  label.classList.add('node-init');
+
+  const nameT = document.createElementNS('http://www.w3.org/2000/svg','text');
+  nameT.setAttribute('x','0'); nameT.setAttribute('y','32');
+  nameT.setAttribute('text-anchor','middle');
+  nameT.setAttribute('fill','#d8e2ed');
+  nameT.setAttribute('font-size','9');
+  nameT.setAttribute('font-family','DM Mono, monospace');
+  nameT.textContent = agent.name;
+  nameT.classList.add('node-name');
+
+  const moodT = document.createElementNS('http://www.w3.org/2000/svg','text');
+  moodT.setAttribute('x','15'); moodT.setAttribute('y','-12');
+  moodT.setAttribute('text-anchor','middle');
+  moodT.setAttribute('font-size','11');
+  moodT.textContent = MOODS[agent.mood]||'😐';
+  moodT.classList.add('node-mood');
+
+  svg.appendChild(outerRing); svg.appendChild(circle);
+  svg.appendChild(label); svg.appendChild(nameT); svg.appendChild(moodT);
+  wrap.appendChild(bubble);
+  wrap.appendChild(svg);
+  canvas.appendChild(wrap);
+
+  // Drag
+  wrap.addEventListener('mousedown', e => {
+    if (S.running) return;
+    S.dragId = agent.id;
+    S.dragOX = e.clientX - agent.x;
+    S.dragOY = e.clientY - agent.y;
+    e.preventDefault();
+  });
+}
+
+document.addEventListener('mousemove', e => {
+  if (!S.dragId) return;
+  const canvas = document.getElementById('canvas');
+  const rect = canvas.getBoundingClientRect();
+  const a = S.agents.find(x=>x.id===S.dragId);
+  if (!a) return;
+  a.x = clamp(e.clientX - S.dragOX, 30, rect.width-30);
+  a.y = clamp(e.clientY - S.dragOY, 30, rect.height-130);
+  const node = document.querySelector(`.node[data-id="${a.id}"]`);
+  if (node) { node.style.left=a.x+'px'; node.style.top=a.y+'px'; }
+  renderRelSvg();
+});
+document.addEventListener('mouseup', () => { S.dragId = null; });
+
+function setNodeSpeaking(id, text, speaking) {
+  const node = document.querySelector(`.node[data-id="${id}"]`);
+  if (!node) return;
+  const bubble = node.querySelector('.node-bubble');
+  if (speaking) {
+    bubble.textContent = text || '...';
+    bubble.classList.add('show');
+    // Pulse outer ring
+    const ring = node.querySelector('.outer-ring');
+    if (ring) { ring.setAttribute('opacity','0.8'); ring.setAttribute('stroke-width','2'); }
+  } else {
+    setTimeout(() => {
+      bubble.classList.remove('show');
+      const ring = node.querySelector('.outer-ring');
+      if (ring) { ring.setAttribute('opacity','0.3'); ring.setAttribute('stroke-width','1'); }
+    }, 4500);
+  }
+  const moodEl = node.querySelector('.node-mood');
+  if (moodEl) {
+    const a = S.agents.find(x=>x.id===id);
+    if (a) moodEl.textContent = MOODS[a.mood]||'😐';
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// RELATIONSHIP SVG
+// ════════════════════════════════════════════════════════════
+function renderRelSvg() {
+  const svg = document.getElementById('relSvg');
+  svg.innerHTML = '';
+  for (const [key, rel] of Object.entries(S.rels)) {
+    if (rel.ixns === 0) continue;
+    const [aid, bid] = key.split('::');
+    const a = S.agents.find(x=>x.id===aid);
+    const b = S.agents.find(x=>x.id===bid);
+    if (!a||!b) continue;
+    const t = rel.trust/100, tn = rel.tension/100;
+    let color, width;
+    if (tn > 0.6) { color=`rgba(224,85,85,${0.2+tn*0.5})`; width=1+tn*2; }
+    else if (t > 0.65) { color=`rgba(78,201,148,${0.2+t*0.4})`; width=1+t*1.5; }
+    else { color=`rgba(201,168,76,${0.1+t*0.25})`; width=1; }
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',a.x); line.setAttribute('y1',a.y);
+    line.setAttribute('x2',b.x); line.setAttribute('y2',b.y);
+    line.setAttribute('stroke',color);
+    line.setAttribute('stroke-width',width);
+    if (tn>0.6) line.setAttribute('stroke-dasharray','6 4');
+    svg.appendChild(line);
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// LEFT PANEL
+// ════════════════════════════════════════════════════════════
+function renderLeft() {
+  const list = document.getElementById('agentsList');
+  list.innerHTML = '';
+  for (const a of S.agents) {
+    const card = document.createElement('div');
+    card.className = 'acard' + (S.selColor===a.color?' sel':'');
+    card.style.setProperty('--ac', a.color);
+    card.dataset.id = a.id;
+    card.innerHTML = `
+      <div class="acard-top">
+        <div class="avt" style="background:${a.color}">${init(a.name)}</div>
+        <div class="ainfo">
+          <div class="aname">${a.name}</div>
+          <div class="arole">${a.role||'No role'}</div>
+        </div>
+        <div class="amood">${MOODS[a.mood]||'😐'}</div>
+      </div>
+      <div class="acard-bottom">
+        <span class="amem-badge">${a.memories.length} mem</span>
+        <div class="abtns">
+          <button class="abtn abtn-e" data-eid="${a.id}">Edit</button>
+          <button class="abtn abtn-d" data-did="${a.id}">✕</button>
+        </div>
+      </div>`;
+    card.querySelector(`[data-eid]`)?.addEventListener('click', e => { e.stopPropagation(); openModal(a.id); });
+    card.querySelector(`[data-did]`)?.addEventListener('click', e => { e.stopPropagation(); deleteAgent(a.id); });
+    list.appendChild(card);
+  }
+  document.getElementById('agentCnt').textContent = `${S.agents.length} active`;
+}
+
+function updateEmpty() {
+  document.getElementById('canvasEmpty').style.display = S.agents.length ? 'none' : 'block';
+}
+
+// ════════════════════════════════════════════════════════════
+// RIGHT PANELS
+// ════════════════════════════════════════════════════════════
+function addStoryNarrator(text) {
+  const feed = document.getElementById('storyFeed');
+  const div = document.createElement('div');
+  div.className = 'story-narrator';
+  div.textContent = text;
+  feed.appendChild(div);
+  feed.scrollTop = feed.scrollHeight;
+  S.exportLog.push(`[NARRATOR] ${text}`);
+}
+
+function addStoryBlock(agent, speech, emotion, turn) {
+  const feed = document.getElementById('storyFeed');
+  // Remove placeholder
+  feed.querySelectorAll('.story-sys').forEach(e=>e.remove());
+  const div = document.createElement('div');
+  div.className = 'story-block';
+  div.innerHTML = `
+    <div class="story-block-hd">
+      <div class="sb-av" style="background:${agent.color}">${init(agent.name)}</div>
+      <span class="sb-name" style="color:${agent.color}">${agent.name}</span>
+      <span class="sb-turn">T${turn}</span>
+    </div>
+    <div class="sb-speech">${speech}</div>
+    ${emotion?`<div class="sb-feel">${MOODS[emotion]||''} ${emotion}</div>`:''}`;
+  feed.appendChild(div);
+  feed.scrollTop = feed.scrollHeight;
+  S.exportLog.push(`[T${turn}] ${agent.name}: "${speech}"`);
+}
+
+function renderRelFeed() {
+  const feed = document.getElementById('relFeed');
+  feed.innerHTML = '';
+  let any = false;
+  for (const [key,rel] of Object.entries(S.rels)) {
+    if (rel.ixns===0) continue;
+    any = true;
+    const [aid,bid] = key.split('::');
+    const a = S.agents.find(x=>x.id===aid);
+    const b = S.agents.find(x=>x.id===bid);
+    if (!a||!b) continue;
+    const tc = rel.trust>60?'var(--jade)':rel.trust<40?'var(--crimson)':'var(--gold)';
+    const tnc = rel.tension>60?'var(--crimson)':rel.tension<20?'var(--jade)':'var(--gold)';
+    feed.innerHTML += `
+      <div class="rel-card">
+        <div class="rel-hd">
+          <div class="rdot" style="background:${a.color}"></div>
+          <span style="color:${a.color}">${a.name}</span>
+          <span class="rarrow">⟷</span>
+          <div class="rdot" style="background:${b.color}"></div>
+          <span style="color:${b.color}">${b.name}</span>
+          <span class="rel-ixn">${rel.ixns}×</span>
+        </div>
+        <div class="rel-bars">
+          <div class="bar-grp">
+            <div class="bar-lbl"><span>Trust</span><span>${rel.trust}%</span></div>
+            <div class="bar-track"><div class="bar-fill" style="width:${rel.trust}%;background:${tc}"></div></div>
+          </div>
+          <div class="bar-grp">
+            <div class="bar-lbl"><span>Tension</span><span>${rel.tension}%</span></div>
+            <div class="bar-track"><div class="bar-fill" style="width:${rel.tension}%;background:${tnc}"></div></div>
+          </div>
+        </div>
+        <div class="rel-sum">${rel.summary}</div>
+      </div>`;
+  }
+  if (!any) feed.innerHTML = '<div class="rel-empty">Relationships emerge<br>as agents interact.</div>';
+}
+
+function renderMemFeed() {
+  const feed = document.getElementById('memFeed');
+  feed.innerHTML = '';
+  let any = false;
+  for (const a of S.agents) {
+    if (!a.memories.length) continue;
+    any = true;
+    const items = a.memories.slice(-8).map(m=>`<div class="mem-item"><div class="mem-t">Turn ${m.turn}</div>${m.text}</div>`).join('');
+    feed.innerHTML += `<div class="mem-section">
+      <div class="mem-hd"><div class="mem-dot" style="background:${a.color}"></div><div class="mem-name">${a.name}</div></div>
+      ${items}</div>`;
+  }
+  if (!any) feed.innerHTML = '<div class="rel-empty">Agent memories<br>accumulate over time.</div>';
+}
+
+// ════════════════════════════════════════════════════════════
+// DIALOGUE LOG
+// ════════════════════════════════════════════════════════════
+function addDialogueLog(agentName, color, msg) {
+  const chain = document.getElementById('dialogueChain');
+  const now = new Date();
+  const t = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+  const div = document.createElement('div');
+  div.className = 'dl';
+  div.innerHTML = `<span class="dl-time">[${t}]</span> <span class="dl-who" style="color:${color}">${agentName}</span> <span class="dl-say">→ ${msg}</span>`;
+  chain.appendChild(div);
+  chain.scrollTop = chain.scrollHeight;
+  while (chain.children.length > 60) chain.removeChild(chain.firstChild);
+}
+
+function sysLog(msg) { addDialogueLog('SYSTEM','var(--t3)', msg); }
+
+// ════════════════════════════════════════════════════════════
+// NARRATOR BANNER
+// ════════════════════════════════════════════════════════════
+let narratorTimer = null;
+function showNarrator(text) {
+  const banner = document.getElementById('narratorBanner');
+  banner.textContent = text;
+  banner.classList.add('show');
+  clearTimeout(narratorTimer);
+  narratorTimer = setTimeout(()=>banner.classList.remove('show'), 7000);
+}
+
+// ════════════════════════════════════════════════════════════
+// SIMULATION ENGINE
+// ════════════════════════════════════════════════════════════
+function buildAgentSystem(agent, others) {
+  const rels = others.map(o => {
+    const r = S.rels[rkey(agent.id,o.id)];
+    return `• ${o.name} (${o.role}): Trust ${r?.trust??50}%, Tension ${r?.tension??0}%. ${r?.summary||''}`;
+  }).join('\n');
+  const mems = agent.memories.slice(-6).map(m=>`[T${m.turn}] ${m.text}`).join('\n');
+  return `You are ${agent.name}.
+ROLE: ${agent.role}
+PERSONALITY: ${agent.script||'A complex individual.'}
+AWARENESS: ${agent.aware==='aware'?'You know this is a simulation.':'You believe this world is entirely real.'}
+
+CURRENT RELATIONSHIPS:
+${rels||'None yet.'}
+
+YOUR MEMORIES (recent):
+${mems||'None yet.'}
+
+RULES:
+- Stay completely in character as ${agent.name}.
+- Respond ONLY with this exact JSON structure, no other text:
+{"speech":"what you say aloud","thought":"your private internal thought (1 sentence)","emotion":"happy|angry|sad|neutral|excited|suspicious|afraid|curious|conflicted|determined","memory":"one sentence memory to store"}`;
+}
+
+function buildNarratorSystem() {
+  return `You are an omniscient cinematic narrator observing a multi-agent simulation. Your job is to write 1-2 vivid, atmospheric sentences describing what is happening in the scene. Be poetic, specific, and cinematic. Return only plain prose — no JSON, no quotes.`;
+}
+
+function buildRelUpdateSystem(a, b, aSpeech, bSpeech, rel) {
+  return `Two characters just had an exchange:
+${a.name}: "${aSpeech}"
+${b.name}: "${bSpeech}"
+Previous relationship — Trust: ${rel.trust}%, Tension: ${rel.tension}%, Note: ${rel.summary}
+
+Update their relationship. ONLY return JSON:
+{"trust":<0-100>,"tension":<0-100>,"summary":"one sentence describing current dynamic"}`;
+}
+
+async function runTurn() {
+  if (!S.running || S.agents.length === 0) return;
+  S.turn++;
+  document.getElementById('turnNum').textContent = S.turn;
+
+  // Pick 2–3 agents to focus on per turn
+  const shuffled = [...S.agents].sort(()=>Math.random()-.5);
+  const active = shuffled.slice(0, Math.min(S.agents.length, S.agents.length <= 2 ? S.agents.length : 3));
+
+  // ── STEP 1: Each agent speaks in sequence (TRUE DIALOGUE CHAIN)
+  const responses = [];
+  for (let i = 0; i < active.length; i++) {
+    const agent = active[i];
+    const others = S.agents.filter(x=>x.id!==agent.id);
+
+    // Build context from previous responses this turn
+    const prevContext = responses.length > 0
+      ? `Others just said:\n${responses.map(r=>`${r.agent.name}: "${r.speech}"`).join('\n')}\n\nNow it's your turn.`
+      : `Turn ${S.turn} begins. React to your environment and the other agents.`;
+
+    // Show thinking indicator on node
+    setNodeSpeaking(agent.id, '...', true);
+
+    try {
+      const raw = await gemini(prevContext, buildAgentSystem(agent, others));
+      const parsed = parseJSON(raw);
+
+      if (!parsed) {
+        responses.push({ agent, speech: raw.slice(0,200), thought:'', emotion:'neutral', memory: raw.slice(0,100) });
+      } else {
+        responses.push({ agent, ...parsed });
+      }
+
+      const resp = responses[responses.length-1];
+      agent.mood = resp.emotion || 'neutral';
+      agent.lastSaid = resp.speech || '';
+
+      if (resp.memory) {
+        agent.memories.push({ turn: S.turn, text: resp.memory });
+        if (agent.memories.length > 25) agent.memories.shift();
+      }
+
+      setNodeSpeaking(agent.id, resp.speech, false);
+      addStoryBlock(agent, resp.speech, resp.emotion, S.turn);
+      if (resp.thought) addDialogueLog(agent.name, agent.color, `thinks: "${resp.thought}"`);
+      renderLeft();
+
+    } catch(err) {
+      sysLog(`${agent.name} error: ${err.message}`);
+      setNodeSpeaking(agent.id, '', false);
+    }
+
+    // Small delay between agent responses for readability
+    await sleep(600);
+  }
+
+  // ── STEP 2: Update relationships between active pairs
+  for (let i = 0; i < active.length; i++) {
+    for (let j = i+1; j < active.length; j++) {
+      const a = active[i], b = active[j];
+      const k = rkey(a.id, b.id);
+      const rel = S.rels[k];
+      if (!rel) continue;
+      const rA = responses.find(r=>r.agent.id===a.id);
+      const rB = responses.find(r=>r.agent.id===b.id);
+      if (!rA || !rB) { rel.ixns++; continue; }
+      try {
+        const raw = await gemini('', buildRelUpdateSystem(a, b, rA.speech, rB.speech, rel));
+        const d = parseJSON(raw);
+        if (d) {
+          rel.trust   = clamp(Math.round(Number(d.trust)  ||rel.trust),   0, 100);
+          rel.tension = clamp(Math.round(Number(d.tension)||rel.tension),  0, 100);
+          rel.summary = d.summary || rel.summary;
+        }
+      } catch{}
+      rel.ixns++;
+    }
+  }
+
+  // ── STEP 3: GM Narrator — every 2 turns
+  if (S.turn % 2 === 0 && responses.length > 0) {
+    const scene = responses.map(r=>`${r.agent.name} (${r.agent.mood}): "${r.speech}"`).join('\n');
+    try {
+      const narration = await gemini(`Turn ${S.turn} scene:\n${scene}\nAgents present: ${S.agents.map(a=>a.name+' ('+a.role+')').join(', ')}`, buildNarratorSystem());
+      if (narration.trim()) {
+        showNarrator(narration.trim());
+        addStoryNarrator(narration.trim());
+        S.exportLog.push(`[NARRATOR] ${narration.trim()}`);
+      }
+    } catch{}
+  }
+
+  renderRelSvg();
+  renderRelFeed();
+  renderMemFeed();
+}
+
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+// ════════════════════════════════════════════════════════════
+// RUN LOOP
+// ════════════════════════════════════════════════════════════
+let simTimer = null;
+
+document.getElementById('runBtn').onclick = async () => {
+  if (!apiKey()) { alert('Please enter your Gemini API Key.\nGet one free at: https://aistudio.google.com/apikey'); return; }
+  if (S.agents.length === 0) { alert('Add at least one agent first.'); return; }
+
+  if (S.running) {
+    S.running = false;
+    clearTimeout(simTimer);
+    document.getElementById('runBtn').textContent = '▶ Run';
+    document.getElementById('runBtn').className = 'btn btn-run';
+    document.getElementById('simStatus').classList.remove('on');
+    sysLog('Simulation paused.');
+    return;
+  }
+
+  S.running = true;
+  document.getElementById('runBtn').textContent = '⏸ Pause';
+  document.getElementById('runBtn').className = 'btn btn-pause';
+  document.getElementById('simStatus').classList.add('on');
+  sysLog(`Simulation started — ${S.agents.length} agents, model: ${model()}`);
+
+  const loop = async () => {
+    if (!S.running) return;
+    await runTurn();
+    if (S.running) simTimer = setTimeout(loop, 2500);
+  };
+  loop();
+};
+
+document.getElementById('resetBtn').onclick = () => {
+  S.running = false; clearTimeout(simTimer);
+  S.turn = 0;
+  S.exportLog = [];
+  S.agents.forEach(a => { a.memories=[]; a.mood='neutral'; a.lastSaid=''; });
+  // Reset rels
+  for (const k of Object.keys(S.rels)) S.rels[k] = { trust:50, tension:0, summary:'Just met.', ixns:0 };
+  S.agents.forEach(a => spawnNode(a));
+  document.getElementById('turnNum').textContent = '0';
+  document.getElementById('runBtn').textContent = '▶ Run';
+  document.getElementById('runBtn').className = 'btn btn-run';
+  document.getElementById('simStatus').classList.remove('on');
+  document.getElementById('storyFeed').innerHTML = '<div class="story-sys">The story will unfold here as agents speak and think.</div>';
+  document.getElementById('dialogueChain').innerHTML = '';
+  document.getElementById('narratorBanner').classList.remove('show');
+  renderLeft(); renderRelSvg(); renderRelFeed(); renderMemFeed();
+  sysLog('Simulation reset.');
+};
+
+// ════════════════════════════════════════════════════════════
+// EXPORT
+// ════════════════════════════════════════════════════════════
+document.getElementById('exportBtn').onclick = () => {
+  if (!S.exportLog.length) { alert('Nothing to export yet. Run the simulation first.'); return; }
+  const header = `NEXUS — Simulation Export\nAgents: ${S.agents.map(a=>a.name+' ('+a.role+')').join(', ')}\nTotal turns: ${S.turn}\nGenerated: ${new Date().toLocaleString()}\n\n${'─'.repeat(60)}\n\n`;
+  const full = header + S.exportLog.join('\n');
+  const blob = new Blob([full], { type:'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download=`nexus-simulation-t${S.turn}.txt`;
+  a.click(); URL.revokeObjectURL(url);
+};
+
+// ════════════════════════════════════════════════════════════
+// MODAL
+// ════════════════════════════════════════════════════════════
+function buildColorPicker() {
+  const row = document.getElementById('colorPicker');
+  row.innerHTML = '';
+  for (const c of COLORS) {
+    const s = document.createElement('div');
+    s.className = 'cswatch' + (c===S.selColor?' on':'');
+    s.style.background = c;
+    s.dataset.c = c;
+    s.onclick = () => {
+      S.selColor = c;
+      document.querySelectorAll('.cswatch').forEach(x=>x.classList.toggle('on', x.dataset.c===c));
+    };
+    row.appendChild(s);
+  }
+}
+
+function openModal(editId=null) {
+  S.editId = editId;
+  document.getElementById('modalTitle').textContent = editId ? 'EDIT AGENT' : 'ADD AGENT';
+  if (editId) {
+    const a = S.agents.find(x=>x.id===editId);
+    document.getElementById('mName').value  = a.name;
+    document.getElementById('mRole').value  = a.role;
+    document.getElementById('mScript').value= a.script;
+    document.getElementById('mAware').value = a.aware;
+    S.selColor = a.color;
+  } else {
+    document.getElementById('mName').value  = '';
+    document.getElementById('mRole').value  = '';
+    document.getElementById('mScript').value= '';
+    document.getElementById('mAware').value = 'unaware';
+    S.selColor = COLORS[S.agents.length % COLORS.length];
+  }
+  buildColorPicker();
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeModal() { document.getElementById('overlay').classList.remove('open'); S.editId=null; }
+
+document.getElementById('addAgentBtn').onclick = ()=>openModal();
+document.getElementById('mCancel').onclick = closeModal;
+document.getElementById('overlay').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeModal(); });
+
+document.getElementById('mSave').onclick = () => {
+  const name = document.getElementById('mName').value.trim();
+  if (!name) { document.getElementById('mName').style.borderColor='var(--crimson)'; return; }
+  document.getElementById('mName').style.borderColor='';
+  const d = {
+    name, role:document.getElementById('mRole').value.trim(),
+    script:document.getElementById('mScript').value.trim(),
+    aware:document.getElementById('mAware').value,
+    color:S.selColor
+  };
+  if (S.editId) updateAgent(S.editId, d);
+  else addAgent(d);
+  closeModal();
+};
+
+// ════════════════════════════════════════════════════════════
+// TABS
+// ════════════════════════════════════════════════════════════
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.onclick = () => {
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+    document.querySelectorAll('.tpane').forEach(t=>t.classList.remove('on'));
+    tab.classList.add('on');
+    document.getElementById(`tp-${tab.dataset.t}`).classList.add('on');
+  };
+});
+
+// ════════════════════════════════════════════════════════════
+// API KEY VALIDATION
+// ════════════════════════════════════════════════════════════
+document.getElementById('apiKey').addEventListener('input', ()=>{
+  const k = apiKey(); const dot = document.getElementById('apiDot');
+  dot.className = 'api-dot';
+  if (k.length > 20) dot.classList.add('ok');
+  else if (k.length > 0) dot.classList.add('bad');
+});
+
+// ════════════════════════════════════════════════════════════
+// INIT — Starter Agents
+// ════════════════════════════════════════════════════════════
+setTimeout(()=>{
+  addAgent({ name:'Elara', role:'Rebel scientist', color:'#c9a84c',
+    script:`Brilliant, reckless, and haunted by a failed experiment that killed her mentor. She speaks in cutting observations wrapped in dark humor. She trusts no one immediately but respects competence. Secretly afraid that the truth she's chasing will destroy her. She argues with conviction but her hands shake when she's lying.`,
+    aware:'unaware' });
+  addAgent({ name:'Kain', role:'Exiled enforcer', color:'#e05555',
+    script:`Former elite operative who walked away from the regime he served. Cold, economical with words, hyperaware of exits and threats. He doesn't forgive easily but his silence often means he's already decided something. Carries guilt like armor. Finds it easier to trust enemies than friends.`,
+    aware:'unaware' });
+  addAgent({ name:'Sera', role:'Oracle / Seer', color:'#9b7ed4',
+    script:`Speaks in layered truths and half-riddles. She knows more than she reveals, always watching how people react rather than what they say. Ancient in manner, young in face. She is never surprised — only waiting for others to catch up. Finds deception distasteful but uses omission masterfully.`,
+    aware:'aware' });
+  sysLog('Starter agents loaded. Enter your Gemini API key and press ▶ Run.');
+}, 100);
+</script>
+</body>
+</html>
